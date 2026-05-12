@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePuzzle } from '@/lib/usePuzzle';
 
 const ALGORITHMS = [
-  { id: 'A_STAR', name: 'A* Search', tag: 'HEURISTIC' },
+  { id: 'A_STAR', name: 'A* Search', tag: 'A-star' },
   { id: 'BFS', name: 'Breadth-First', tag: 'BFS' },
   { id: 'DFS', name: 'Depth-First', tag: 'DFS' },
   { id: 'IDS', name: 'Iterative Deepening', tag: 'IDS' },
@@ -19,7 +19,6 @@ const ALGO_COLORS: Record<string, string> = {
   DLS:    '#4cc9f0',
 };
 
-// Extracted static CSS to prevent hydration/re-render lag
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap');
 
@@ -42,28 +41,8 @@ const STYLES = `
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  .puzzle-root {
-    min-height: 100vh;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-ui);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 2rem 1.5rem 3rem;
-    position: relative;
-    overflow-x: hidden;
-  }
-
-  .puzzle-root::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,245,212,0.015) 2px, rgba(0,245,212,0.015) 4px);
-    pointer-events: none;
-    z-index: 0;
-  }
-
+  .puzzle-root { min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--font-ui); display: flex; flex-direction: column; align-items: center; padding: 2rem 1.5rem 3rem; position: relative; overflow-x: hidden; }
+  .puzzle-root::before { content: ''; position: fixed; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,245,212,0.015) 2px, rgba(0,245,212,0.015) 4px); pointer-events: none; z-index: 0; }
   .puzzle-root > * { position: relative; z-index: 1; }
 
   .header { text-align: center; margin-bottom: 0.4rem; }
@@ -73,7 +52,6 @@ const STYLES = `
   .header-sub { font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.2em; color: var(--text-dim); margin-top: 0.5rem; }
 
   .divider { width: 100%; max-width: 900px; height: 1px; background: linear-gradient(90deg, transparent, var(--cyan), transparent); margin: 1.2rem 0; opacity: 0.3; }
-
   .action-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; justify-content: center; margin-bottom: 1.8rem; }
 
   .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 2px; position: relative; }
@@ -99,7 +77,6 @@ const STYLES = `
   .right-col { flex: 1; width: 100%; max-width: 460px; display: flex; flex-direction: column; gap: 1rem; }
 
   .controls-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; width: 100%; margin-bottom: 1rem; padding: 0.75rem; }
-
   .select-styled { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.06em; background: #060c10; border: 1px solid var(--border-hi); color: var(--text); padding: 0.5rem 0.7rem; cursor: pointer; outline: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%234a7a8a' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.6rem center; padding-right: 1.8rem; transition: border-color 0.2s; }
   .select-styled:focus { border-color: var(--cyan); }
 
@@ -114,6 +91,9 @@ const STYLES = `
   .btn-solve:disabled { opacity: 0.3; cursor: not-allowed; }
   .btn-solve.solving { animation: pulse-solve 1.2s infinite; }
   @keyframes pulse-solve { 0%, 100% { box-shadow: 0 0 6px rgba(0,245,212,0.2); } 50% { box-shadow: 0 0 22px rgba(0,245,212,0.5); } }
+
+  .btn-play-pause { background: transparent; border: 1px solid var(--cyan); color: var(--cyan); width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer; transition: all 0.2s; font-size: 0.65rem; flex-shrink: 0;}
+  .btn-play-pause:hover { background: rgba(0,245,212,0.1); box-shadow: 0 0 8px rgba(0,245,212,0.4); }
 
   .board-wrapper { position: relative; width: 100%; margin-bottom: 1rem; }
   .board-corner { position: absolute; width: 20px; height: 20px; border-color: var(--cyan); border-style: solid; opacity: 0.4; z-index: 2; pointer-events: none; transition: opacity 0.3s; }
@@ -135,8 +115,9 @@ const STYLES = `
   .slider-panel { width: 100%; padding: 1rem 1.2rem; margin-bottom: 0.5rem; }
   .slider-labels { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-dim); margin-bottom: 0.6rem; letter-spacing: 0.08em; }
   .slider-labels span.step-label { color: var(--cyan); font-weight: bold; }
+  .slider-controls { display: flex; align-items: center; gap: 0.8rem; width: 100%; }
   
-  input[type=range].styled-range { width: 100%; height: 3px; background: var(--border-hi); border-radius: 0; outline: none; -webkit-appearance: none; appearance: none; cursor: pointer; }
+  input[type=range].styled-range { flex: 1; height: 3px; background: var(--border-hi); border-radius: 0; outline: none; -webkit-appearance: none; appearance: none; cursor: pointer; }
   input[type=range].styled-range::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: var(--cyan); border-radius: 0; box-shadow: 0 0 8px rgba(0,245,212,0.6); clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
 
   .panel-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
@@ -194,6 +175,9 @@ export default function SlidingPuzzle() {
   const [compareResults, setCompareResults] = useState<any[]>([]);
   const [isComparing, setIsComparing] = useState(false);
   const [runningAlgo, setRunningAlgo] = useState<string | null>(null);
+  
+  // Auto-play State
+  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
 
   const {
     board, setBoard, move, shuffle, isSolved, emptyIndex, goalState,
@@ -201,6 +185,24 @@ export default function SlidingPuzzle() {
   } = usePuzzle(dimensions.rows, dimensions.cols);
 
   const displayBoard = solutionStates.length > 0 ? solutionStates[sliderIndex] : board;
+
+  // Handles Slider Auto-Play
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isAutoPlaying && solutionStates.length > 0) {
+      timer = setInterval(() => {
+        setSliderIndex((prev) => {
+          if (prev < solutionStates.length - 1) {
+            return prev + 1;
+          } else {
+            setIsAutoPlaying(false);
+            return prev;
+          }
+        });
+      }, 300); // Speed of auto-play (300ms per move)
+    }
+    return () => clearInterval(timer);
+  }, [isAutoPlaying, solutionStates.length, setSliderIndex]);
 
   const getBackgroundPosition = (value: number) => {
     const targetCol = value % dimensions.cols;
@@ -213,10 +215,9 @@ export default function SlidingPuzzle() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Memory Optimization: Object URLs are significantly faster and lighter than Base64 FileReader
       const url = URL.createObjectURL(file);
       setImageUrl((prev) => {
-        if (prev.startsWith('blob:')) URL.revokeObjectURL(prev); // Cleanup old URL to prevent memory leaks
+        if (prev.startsWith('blob:')) URL.revokeObjectURL(prev);
         return url;
       });
     }
@@ -228,11 +229,19 @@ export default function SlidingPuzzle() {
     setSliderIndex(0);
     setStats(null);
     setCompareResults([]);
+    setIsAutoPlaying(false);
+  };
+
+  const handleShuffle = () => {
+    shuffle();
+    setIsAutoPlaying(false);
   };
 
   const handleSolve = async () => {
     setIsSolving(true);
     setStats(null);
+    setIsAutoPlaying(false);
+    
     try {
       const response = await fetch('http://localhost:8000/api/solve', {
         method: 'POST',
@@ -240,7 +249,6 @@ export default function SlidingPuzzle() {
         body: JSON.stringify({ initial_state: board, goal_state: goalState, dimensions, algorithm })
       });
       
-      // FIX: Explicitly catch Bad Requests (Unsolvable / Depth Limits)
       if (response.status === 400) {
         alert("Puzzle is unsolvable at this depth!");
         return;
@@ -252,6 +260,7 @@ export default function SlidingPuzzle() {
         setSolutionStates(data.states);
         setStats(data.statistics);
         setSliderIndex(0);
+        setIsAutoPlaying(true); // Automatically start playing when solved
       }
     } catch (error) {
       console.error(error);
@@ -271,10 +280,11 @@ export default function SlidingPuzzle() {
     if (selectedAlgos.length === 0) return alert("Select at least one algorithm!");
     setIsComparing(true);
     setCompareResults([]);
+    setIsAutoPlaying(false);
     
     const results = [];
     for (const algo of selectedAlgos) {
-      setRunningAlgo(algo); // UX Improvement: Tell the user which algo is currently being tested
+      setRunningAlgo(algo); 
       try {
         const response = await fetch('http://localhost:8000/api/solve', {
           method: 'POST',
@@ -300,19 +310,17 @@ export default function SlidingPuzzle() {
     setIsComparing(false);
   };
 
-  // Safe checks for empty arrays
   const maxTime  = Math.max(...compareResults.map(r => r.stats?.time_taken_ms  || 0), 1);
   const maxNodes = Math.max(...compareResults.map(r => r.stats?.nodes_expanded || 0), 1);
+  const maxSteps = Math.max(...compareResults.map(r => r.stats?.max_depth || 0), 1);
 
   const algoObj = ALGORITHMS.find(a => a.id === algorithm)!;
 
   return (
     <>
-      {/* Dangerously Set CSS ensures the block is evaluated correctly without React hydration mismatch warnings */}
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
 
       <div className="puzzle-root">
-        {/* Header */}
         <div className="header">
           <div className="header-eyebrow">AUTONOMOUS PATHFINDING ENGINE v2.4</div>
           <h1>AI SLIDING <span>PUZZLE</span></h1>
@@ -321,7 +329,6 @@ export default function SlidingPuzzle() {
 
         <div className="divider" />
 
-        {/* Action Bar */}
         <div className="action-bar">
           <label className="btn-base btn-upload" style={{ borderWidth: '1px', borderStyle: 'solid' }}>
             <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -334,22 +341,20 @@ export default function SlidingPuzzle() {
           <div className="mode-toggle">
             <button
               className={`mode-btn ${!isCompareMode ? 'active-solve' : ''}`}
-              onClick={() => setIsCompareMode(false)}
+              onClick={() => { setIsCompareMode(false); setIsAutoPlaying(false); }}
             >
               SOLVE
             </button>
             <button
               className={`mode-btn ${isCompareMode ? 'active-compare' : ''}`}
-              onClick={() => setIsCompareMode(true)}
+              onClick={() => { setIsCompareMode(true); setIsAutoPlaying(false); }}
             >
               BENCHMARK
             </button>
           </div>
         </div>
 
-        {/* Main Layout */}
         <div className="main-layout">
-
           {/* LEFT: Controls + Board */}
           <div className="left-col">
             <div className="panel bracket-panel controls-row" style={{ width: '100%', marginBottom: '1rem' }}>
@@ -365,7 +370,7 @@ export default function SlidingPuzzle() {
                 {['3x3','4x4','5x5','6x6','7x7'].map(s => <option key={s} value={s}>{s} GRID</option>)}
               </select>
 
-              <button className="btn-base btn-shuffle" onClick={shuffle}>SHUFFLE</button>
+              <button className="btn-base btn-shuffle" onClick={handleShuffle}>SHUFFLE</button>
               <button className="btn-base btn-reset"   onClick={handleReset}>RESET</button>
 
               {!isCompareMode && (
@@ -413,7 +418,7 @@ export default function SlidingPuzzle() {
                     <div
                       key={value}
                       className={`tile ${isMissing ? 'tile-empty' : ''}`}
-                      onClick={() => { if (!isSolved) move(index); }}
+                      onClick={() => { if (!isSolved) { move(index); setIsAutoPlaying(false); } }}
                       style={{ borderRadius: isSolved && !isCompareMode ? '0' : '1px' }}
                     >
                       {!isMissing && (
@@ -436,7 +441,7 @@ export default function SlidingPuzzle() {
               <div className="solved-banner">// PUZZLE SOLVED — GOAL STATE REACHED</div>
             )}
 
-            {/* Slider */}
+            {/* Slider with Play/Pause */}
             {!isCompareMode && solutionStates.length > 0 && (
               <div className="panel bracket-panel slider-panel fade-up" style={{ width: '100%' }}>
                 <div className="slider-labels">
@@ -444,21 +449,34 @@ export default function SlidingPuzzle() {
                   <span className="step-label">STEP {sliderIndex} / {solutionStates.length - 1}</span>
                   <span>GOAL</span>
                 </div>
-                <input
-                  type="range"
-                  className="styled-range"
-                  min="0"
-                  max={solutionStates.length - 1}
-                  value={sliderIndex}
-                  onChange={(e) => setSliderIndex(Number(e.target.value))}
-                />
+                <div className="slider-controls">
+                  <button 
+                    className="btn-play-pause"
+                    onClick={() => {
+                      if (sliderIndex === solutionStates.length - 1) setSliderIndex(0); // restart if at end
+                      setIsAutoPlaying(!isAutoPlaying);
+                    }}
+                  >
+                    {isAutoPlaying ? '⏸' : '▶'}
+                  </button>
+                  <input
+                    type="range"
+                    className="styled-range"
+                    min="0"
+                    max={solutionStates.length - 1}
+                    value={sliderIndex}
+                    onChange={(e) => {
+                      setIsAutoPlaying(false); // Pause auto-play when user drags
+                      setSliderIndex(Number(e.target.value));
+                    }}
+                  />
+                </div>
               </div>
             )}
           </div>
 
           {/* RIGHT: Stats / Compare */}
           <div className="right-col">
-
             {isCompareMode ? (
               <div className="panel bracket-panel compare-panel fade-up">
                 <div className="panel-header">
@@ -497,6 +515,29 @@ export default function SlidingPuzzle() {
 
                 {compareResults.length > 0 && (
                   <div className="fade-up">
+                    {/* Time chart */}
+                    <div className="chart-section">
+                      <div className="chart-label">EXECUTION TIME — SPEED</div>
+                      {compareResults.map((res, i) => (
+                        <div key={i} className="bar-row">
+                          <div className="bar-name">{res.algorithm.replace('_', '*')}</div>
+                          <div className="bar-track">
+                            <div
+                              className="bar-fill"
+                              style={{
+                                width: res.success ? `${(res.stats.time_taken_ms / maxTime) * 100}%` : '0%',
+                                background: ALGO_COLORS[res.algorithm],
+                                boxShadow: `0 0 6px ${ALGO_COLORS[res.algorithm]}88`
+                              }}
+                            />
+                          </div>
+                          <div className="bar-val" style={{ color: ALGO_COLORS[res.algorithm] }}>
+                            {res.success ? `${res.stats.time_taken_ms}ms` : 'N/A'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
                     {/* Nodes chart */}
                     <div className="chart-section">
                       <div className="chart-label">NODES EXPANDED — MEMORY COST</div>
@@ -520,9 +561,9 @@ export default function SlidingPuzzle() {
                       ))}
                     </div>
 
-                    {/* Time chart */}
+                    {/* NEW: Steps / Depth chart */}
                     <div className="chart-section">
-                      <div className="chart-label">EXECUTION TIME — SPEED</div>
+                      <div className="chart-label">SOLUTION DEPTH — STEPS REQUIRED</div>
                       {compareResults.map((res, i) => (
                         <div key={i} className="bar-row">
                           <div className="bar-name">{res.algorithm.replace('_', '*')}</div>
@@ -530,18 +571,19 @@ export default function SlidingPuzzle() {
                             <div
                               className="bar-fill"
                               style={{
-                                width: res.success ? `${(res.stats.time_taken_ms / maxTime) * 100}%` : '0%',
+                                width: res.success ? `${(res.stats.max_depth / maxSteps) * 100}%` : '0%',
                                 background: ALGO_COLORS[res.algorithm],
                                 boxShadow: `0 0 6px ${ALGO_COLORS[res.algorithm]}88`
                               }}
                             />
                           </div>
                           <div className="bar-val" style={{ color: ALGO_COLORS[res.algorithm] }}>
-                            {res.success ? `${res.stats.time_taken_ms}ms` : 'N/A'}
+                            {res.success ? `${res.stats.max_depth} Steps` : 'LIMIT'}
                           </div>
                         </div>
                       ))}
                     </div>
+
                   </div>
                 )}
               </div>

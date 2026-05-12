@@ -10,7 +10,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-200 font-sans selection:bg-blue-500/30">
+    <div className="min-h-screen align-middle bg-gray-950 text-gray-200 font-sans selection:bg-blue-500/30">
       <Head>
         <title>AI Sliding Puzzle | Graph Search Solver</title>
         <meta name="description" content="AI-powered sliding puzzle solver using A* and other graph search algorithms." />
