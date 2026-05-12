@@ -1,8 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 
 export const usePuzzle = (rows: number, cols: number) => {
   const size = rows * cols;
-  const goalState = Array.from(Array(size).keys());
+  
+  // useMemo ensures goalState calculates efficiently when dimensions change
+  const goalState = useMemo(() => Array.from(Array(size).keys()), [size]);
   
   const [board, setBoard] = useState<number[]>(goalState);
   const [isSolved, setIsSolved] = useState(false);
@@ -10,6 +12,13 @@ export const usePuzzle = (rows: number, cols: number) => {
   // AI Solution States
   const [solutionStates, setSolutionStates] = useState<number[][]>([]);
   const [sliderIndex, setSliderIndex] = useState(0);
+
+  // FIX: Force the board to reset whenever the dimensions (goalState) change
+  useEffect(() => {
+    setBoard(goalState);
+    setSolutionStates([]);
+    setSliderIndex(0);
+  }, [goalState]);
 
   // Check if current board matches the goal state
   useEffect(() => {
@@ -21,8 +30,8 @@ export const usePuzzle = (rows: number, cols: number) => {
   const move = useCallback((index: number) => {
     // If a user clicks manually during a playback, invalidate the AI solution
     if (solutionStates.length > 0) {
-      setBoard(solutionStates[sliderIndex]); // Snap board to current slider frame
-      setSolutionStates([]); // Clear timeline
+      setBoard(solutionStates[sliderIndex]); 
+      setSolutionStates([]); 
       setSliderIndex(0);
     }
 
@@ -49,7 +58,8 @@ export const usePuzzle = (rows: number, cols: number) => {
     
     let currentBoard = [...goalState];
     let emptyIdx = size - 1;
-    const shuffleMoves = 50; 
+    // Lowered shuffle moves slightly so DLS and IDS have a better chance of solving it
+    const shuffleMoves = 30; 
 
     for (let i = 0; i < shuffleMoves; i++) {
       const row = Math.floor(emptyIdx / cols);
